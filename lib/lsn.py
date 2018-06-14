@@ -16,10 +16,10 @@ class siamese_net(object):
   
     def __init__(self, net_arch):
               
-        self.input_L = tf.placeholder(tf.float32, [None, net_arch['input_shape']],name='baseline')
-        self.input_R = tf.placeholder(tf.float32, [None, net_arch['input_shape']],name='follow_up')
+        self.input_L = tf.placeholder(tf.float32, [None, net_arch['MR_shape']],name='baseline')
+        self.input_R = tf.placeholder(tf.float32, [None, net_arch['MR_shape']],name='follow_up')
         self.aux_gen = tf.placeholder(tf.float32, [None,1],name='apoe')  #apoe4 status
-        self.aux_clinical = tf.placeholder(tf.float32, [None,net_arch['aux_clinical_shape']],name='clinical_attr')
+        self.aux_clinical = tf.placeholder(tf.float32, [None,net_arch['aux_shape']-1],name='clinical_attr')
         self.labels = tf.placeholder(tf.float32, [None,net_arch['output']],name='trajectory')                
         self.is_training = True  #toggles dropout in slim
         self.dropout = 1      
@@ -47,7 +47,7 @@ class siamese_net(object):
                 net = slim.dropout(net, self.dropout, is_training=self.is_training)
 
             # MR output
-            MR_predictions = slim.fully_connected(net, net_arch['mr_output'], 
+            MR_predictions = slim.fully_connected(net, net_arch['MR_output'], 
                                                   normalizer_fn=slim.batch_norm, scope='MR_prediction')               
 
             return MR_predictions #Later also return end_points 
@@ -81,7 +81,7 @@ class siamese_net(object):
     #-------------- net with basic/raw TF code (without slim) --------------#
     #-------------- not used when slim is used (preferred)------------------#
     def mlpnet(self, X):
-        l1 = self.mlp(X,layer_config['input_shape'],layer_config['l1'],name='l1')
+        l1 = self.mlp(X,layer_config['MR_shape'],layer_config['l1'],name='l1')
         l1 = tf.nn.dropout(l1,self.dropout)
         l2 = self.mlp(l1,layer_config['l1'],layer_config['l2'],name='l2')
         l2 = tf.nn.dropout(l2,self.dropout_f)
@@ -129,10 +129,10 @@ def check_data_shapes(data,net_arch):
     if data['X_MR'].shape[1] != 2:
         print('wrong input data dimensions - need MR data for two branches')
         check = False
-    elif data['X_MR'].shape[2] != net_arch['input_shape']:
+    elif data['X_MR'].shape[2] != net_arch['MR_shape']:
         print('input MR data <-> LSN arch mismatch')
         check = False
-    elif data['X_aux'].shape[1] != net_arch['aux_clinical_shape']+1:
+    elif data['X_aux'].shape[1] != net_arch['aux_shape']:
         print('input aux data <-> LSN arch mismatch')
         check = False
     elif data['y'].shape[1] != net_arch['output']:
@@ -149,7 +149,7 @@ def check_data_shapes(data,net_arch):
     return check
   
 # Train and test defs
-def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validate_after):
+def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validate_after, verbose):
     valid_frac = int(0.1*len(data['y']))
     
     # Split into train and valid data for hyperparam tuning
@@ -163,12 +163,15 @@ def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validat
 
     total_batch = int(len(y_valid)/batch_size)
     print('total_batch {}'.format(total_batch))
-
+    
+    train_acc_list = []
+    valid_acc_list = []
+    train_loss_list = []
+    valid_loss_list = []
   # Training cycle
     for epoch in range(n_epochs):
         avg_loss = 0.
         avg_acc = 0.
-
         start_time = time.time()
         # Loop over all batches
         for i in range(total_batch):
@@ -191,7 +194,8 @@ def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validat
             avg_acc +=acc_value*100
 
         duration = time.time() - start_time
-        print('epoch %d  time: %.2f loss %0.4f acc %0.2f' %(epoch,duration,avg_loss/total_batch,avg_acc/total_batch))      
+        if verbose:
+            print('epoch %d  time: %.2f loss %0.4f acc %0.2f' %(epoch,duration,avg_loss/total_batch,avg_acc/total_batch))      
 
         #Compute perf on entire training and validation sets (no need after every epoch)
         if epoch%validate_after == 0:
@@ -201,8 +205,18 @@ def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validat
             valid_acc = lsn.accuracy.eval(feed_dict={lsn.input_L:X_MR_valid[:,0,:],lsn.input_R:X_MR_valid[:,1,:],
                                          lsn.aux_gen:X_aux_valid[:,0:1],lsn.aux_clinical:X_aux_valid[:,1:],
                                          lsn.labels:y_valid})
+            train_loss = lsn.loss.eval(feed_dict={lsn.input_L:X_MR_train[:,0,:],lsn.input_R:X_MR_train[:,1,:],
+                                         lsn.aux_gen:X_aux_train[:,0:1],lsn.aux_clinical:X_aux_train[:,1:],
+                                         lsn.labels:y_train})
+            valid_loss = lsn.loss.eval(feed_dict={lsn.input_L:X_MR_valid[:,0,:],lsn.input_R:X_MR_valid[:,1,:],
+                                         lsn.aux_gen:X_aux_valid[:,0:1],lsn.aux_clinical:X_aux_valid[:,1:],
+                                         lsn.labels:y_valid})
             print('performance on entire train and valid subsets')
             print('epoch {}\t train_acc:{}\t valid_acc:{}\n'.format(epoch,train_acc,valid_acc))
+            train_acc_list.append(train_acc)
+            valid_acc_list.append(valid_acc)
+            train_loss_list.append(train_loss)
+            valid_loss_list.append(valid_loss)
   
     # -----------TODO--------------
     # Save trained model
@@ -217,7 +231,9 @@ def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validat
     train_preds= lsn.preds.eval(feed_dict={lsn.input_L:X_MR_train[:,0,:],lsn.input_R:X_MR_train[:,1,:],
                                   lsn.aux_gen:X_aux_train[:,0:1],lsn.aux_clinical:X_aux_train[:,1:]})
 
-    train_metrics = {'train_feature_L':train_feature_L,'train_feature_R':train_feature_R,'train_preds':train_preds}
+    train_metrics = {'train_feature_L':train_feature_L,'train_feature_R':train_feature_R,'train_preds':train_preds,
+                     'train_loss':train_loss_list,'train_acc':train_acc_list,
+                     'valid_loss':valid_loss_list,'valid_acc':valid_acc_list}
 
     return lsn, train_metrics
 
