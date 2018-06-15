@@ -161,14 +161,15 @@ def train_lsn(sess, lsn, data, optimizer, n_epochs, batch_size, dropout, validat
     X_aux_valid = data['X_aux'][1-valid_frac:]
     y_valid = data['y'][1-valid_frac:]
 
-    total_batch = int(len(y_valid)/batch_size)
-    print('total_batch {}'.format(total_batch))
+    total_batch = int(len(y_train)/batch_size)
+    #print('total_batch {}'.format(total_batch))
     
     train_acc_list = []
     valid_acc_list = []
     train_loss_list = []
     valid_loss_list = []
-  # Training cycle
+    
+    # Training cycle
     for epoch in range(n_epochs):
         avg_loss = 0.
         avg_acc = 0.
