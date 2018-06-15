@@ -255,7 +255,7 @@ def test_lsn(sess,lsn,data):
                                        lsn.aux_gen:X_aux_test[:,0:1],lsn.aux_clinical:X_aux_test[:,1:],
                                        lsn.labels:y_test})
 
-    test_metrics = {'test_feature_L':test_feature_L,'test_feature_R':test_feature_R,'test_preds':test_preds}
+    test_metrics = {'test_feature_L':test_feature_L,'test_feature_R':test_feature_R,'test_preds':test_preds,'test_acc':test_acc}
     print('Accuracy test set %0.2f' % (100 * test_acc))
     return lsn, test_metrics
 
