@@ -7,9 +7,8 @@ Longitudinal Siamese Network for clinical trajectory prediction
     -  LSN/lib/lsn.py: LSN model class and useful functions for training and testing
     -  LSN/notebooks/run_lsn.ipynb: notebook to train and test LSN model with real data
     
-  - Trajectory modeling (in progress) 
-    -  Clustering code for modeling longitudinal clinical data
-    -  Trajectory assignment to new subjects 
+  - Trajectory modeling  
+    -  LSN/notebooks/model_trajectories.ipynb: Clustering code for modeling longitudinal clinical trajectories and subsequent assignment to new subjects 
     
 - LSN data flow
     -  input (check notebooks for required data shapes) 
