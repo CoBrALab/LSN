@@ -16,6 +16,8 @@ Longitudinal Siamese Network for clinical trajectory prediction
         - aux: apoe4 status + clinical scores (baseline + follow-up) + demographics (optional)      
     -  output (one-hot) 
         - labels: trajectory / Dx / Px labels (binary and multiclass are supported) 
+        
+- Legacy dir has older code version along with useful notebook for mapping vertex-wise CIVET data into an atlas based ROIs. 
   
 - Prereqs 
   - python3.5+
